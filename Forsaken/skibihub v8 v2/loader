@@ -293,7 +293,7 @@ Library:CreateGradientButton(Loader, "Load Script", function()
     -- survivor checks
     if table.find(survivors, "Jane Doe") then
         print("e")
-        loadstring(game:HttpGet("https://pastebin.com/raw/i8Cg6rKF"))()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/skibided400/Scripts/refs/heads/main/Forsaken/skibihub%20v8%20v2/survivors/jane%20doe"))()
     end
 end, {
     ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 200, 255)),
