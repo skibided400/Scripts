@@ -1,0 +1,30 @@
+
+-- vars
+
+local minchargeto = 0
+local maxchargeto = 0.1
+
+-- setup
+local Library = getgenv().Library or loadstring(game:HttpGet("https://raw.githubusercontent.com/skibided400/Scripts/refs/heads/main/ui%20libs/worst%20ui%20library"))()
+Library:Init()
+
+local usingPC = getgenv().usingPC
+
+local main = Library:CreateTabbedWindow("JaneDoe", UDim2.new(0, 50, 0, 50), 250)
+
+local crystal = main:AddTab("Crystal")
+
+Library:CreateSlider(crystal, "Min Charge Time", 0, 10, minchargeto, 0.1, function(value)
+    minchargeto = value
+end, "MinIChargeTo")
+Library:CreateSlider(crystal, "Max Charge Time", 0.1, 10, maxchargeto, 0.1, function(value)
+    maxchargeto = value
+end, "MaxIChargeTo")
+
+Library:CreateButton(crystal, "Change Charge Time", function()
+    local jane = require(game:GetService("ReplicatedStorage").Assets.Survivors.JaneDoe.Config)
+    jane.MinChargeTime = minchargeto
+    jane.MaxChargeTime = maxchargeto
+end)
+
+Library:ApplyConfig()
