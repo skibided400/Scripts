@@ -17,10 +17,10 @@ local main = Library:CreateTabbedWindow("JaneDoe", UDim2.new(0, 50, 0, 50), 250)
 
 local crystal = main:AddTab("Crystal")
 
-Library:CreateSlider(crystal, "Min Charge Time", 0, 10, 0, 0.1, function(value)
+Library:CreateSlider(crystal, "Min Charge Time", 0, 10, 0, 0, function(value)
     minchargeto = value
 end, "MinIChargeTo")
-Library:CreateSlider(crystal, "Max Charge Time", 0.1, 10, 0.1, 0.1, function(value)
+Library:CreateSlider(crystal, "Max Charge Time", 0.1, 10, 0.1, 0, function(value)
     maxchargeto = value
 end, "MaxIChargeTo")
 
