@@ -1,0 +1,340 @@
+-- tables, vars and functions
+getgenv().usingPC = false
+getgenv().blockRemote = false
+
+-- SWING IDS TABLE
+getgenv().targetSoundIds = {
+    [80516583309685] = true, [140242176732868] = true, [112809109188560] = true,
+    [109348678063422] = true, [106368806396221] = true, [134919845317438] = true,
+    [100390568341289] = true, [101937011678243] = true, [83336588073857] = true,
+    [129697992204296] = true, [12222216] = true,        [119583605486352] = true,
+    [79980897195554] = true,  [106836941416453] = true, [117173212095661] = true,
+    [104910828105172] = true, [108907358619313] = true, [86174610237192] = true,
+    [131123355704017] = true, [105204810054381] = true, [98675142200448] = true,
+    [89004992452376] = true,  [136323728355613] = true, [112395455254818] = true,
+    [108610718831698] = true, [128367348686124] = true, [114742322778642] = true,
+    [131406927389838] = true, [105840448036441] = true, [116581754553533] = true,
+    [107444859834748] = true, [94317217837143] = true,  [124903763333174] = true,
+    [116468089135195] = true, [120749612844426] = true, [71805956520207] = true,
+    [125213046326879] = true, [117231507259853] = true, [101698569375359] = true,
+    [101553872555606] = true, [127557531826290] = true, [108651070773439] = true,
+    [74842815979546] = true,  [96594507550917] = true,  [139996647355899] = true,
+    [128195973631079] = true, [79391273191671] = true,  [75330693422988] = true,
+    [82221759983649] = true, [84307400688050] = true,
+}
+
+-- global functions
+function GetCharacterAt(mode: string, wallCheck: boolean)
+	local camera = workspace.CurrentCamera
+	local lpChar = lp.Character
+	if not lpChar then return nil end
+
+	local lpRoot = lpChar:FindFirstChild("HumanoidRootPart")
+	if not lpRoot then return nil end
+
+	local bestChar = nil
+	local bestScore = math.huge
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player == lp then continue end
+
+		local char = player.Character
+		if not char then continue end
+
+		local root = char:FindFirstChild("HumanoidRootPart")
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		if not root or not hum or hum.Health <= 0 then continue end
+
+		local score
+
+		if mode == "closestH" then
+			-- Score by world-space distance from lp's root
+			score = (root.Position - lpRoot.Position).Magnitude
+
+		elseif mode == "closestC" then
+			-- Score by how close the target is to the center of the camera's screen
+			local screenPos, onScreen = camera:WorldToViewportPoint(root.Position)
+			if not onScreen then continue end
+
+			local viewportSize = camera.ViewportSize
+			local center = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+			local screenPoint = Vector2.new(screenPos.X, screenPos.Y)
+			score = (screenPoint - center).Magnitude
+		else
+			warn("GetCharacterAt: unknown mode '" .. tostring(mode) .. "'")
+			return nil
+		end
+
+		-- Wall check: cast a ray from lp's root toward the target.
+		-- If it hits something before reaching the target, skip them.
+		if wallCheck then
+			local origin = lpRoot.Position
+			local direction = (root.Position - origin)
+			local distance = direction.Magnitude
+			local unitDir = direction / distance
+
+			local rayParams = RaycastParams.new()
+			rayParams.FilterDescendantsInstances = {lpChar, char}
+			rayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+			local result = workspace:Raycast(origin, unitDir * distance, rayParams)
+
+			-- If the ray hit something, there's a wall in the way
+			if result then continue end
+		end
+
+		if score < bestScore then
+			bestScore = score
+			bestChar = char
+		end
+	end
+
+	return bestChar
+end
+
+function isSpectator()
+    local char = LocalPlayer.Character
+    return char and char.Parent and char.Parent.Name == "Spectator"
+end
+
+function isSurvivor()
+    local char = LocalPlayer.Character
+    return char and char.Parent and char.Parent.Name == "Survivors"
+end
+function isKiller()
+    local char = LocalPlayer.Character
+    return char and char.Parent and char.Parent.Name == "Killers"
+end
+
+function isTwoTime()
+    local char = LocalPlayer.Character
+    return char and char.Name == "TwoTime"
+end
+
+function GetKillerCharacter()
+	for _, player in ipairs(Players:GetPlayers()) do
+		local character = player.Character
+
+		if character and character.Parent == workspace.Players.Killers then
+			return character
+		end
+	end
+
+	return nil
+end
+
+function fireRemote(name, other)
+    local prefix = {0x03, 0x05, 0x00, 0x00, 0x00}
+    local seem = other or false
+   
+    if seem == true then
+        prefix = {0x03, 0x06, 0x00, 0x00, 0x00}
+    end
+
+    local totalLen = #prefix + #name
+    local buf = buffer.create(totalLen)
+
+    for i, byte in ipairs(prefix) do
+        buffer.writeu8(buf, i - 1, byte)
+    end
+
+    for i = 1, #name do
+        buffer.writeu8(buf, #prefix + i - 1, string.byte(name, i))
+    end
+
+    local args = {
+        "UseActorAbility",
+        { buf }
+    }
+
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local modules = replicatedStorage:FindFirstChild("Modules")
+    local network1 = modules and modules:FindFirstChild("Network")
+    local network2 = network1 and network1:FindFirstChild("Network")
+    local remoteEvent = network2 and network2:FindFirstChild("RemoteEvent")
+
+    if remoteEvent then
+        remoteEvent:FireServer(unpack(args))
+    end
+end
+
+
+function IsAnimationPlaying(AnimationId)
+	local Character = LocalPlayer.Character
+	if not Character then
+		return false
+	end
+
+	local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+	if not Humanoid then
+		return false
+	end
+
+	for _, track in ipairs(Humanoid:GetPlayingAnimationTracks()) do
+		local anim = track.Animation
+		if anim and anim.AnimationId:match("%d+") == tostring(AnimationId) then
+			return true
+		end
+	end
+
+	return false
+end
+
+function AimAt(target, duration, mode, prediction, predictionSensitivity)
+    local targetHRP
+    if typeof(target) == "Instance" then
+        if target:IsA("Model") then
+            targetHRP = target:FindFirstChild("HumanoidRootPart")
+        elseif target:IsA("BasePart") and target.Name == "HumanoidRootPart" then
+            targetHRP = target
+        end
+    end
+
+    if not targetHRP then
+        return nil
+    end
+
+    local lp = Players.LocalPlayer
+    local character = lp.Character
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+
+    if not hrp then
+        return nil
+    end
+
+    local root = hrp
+    local tRoot = targetHRP
+
+    predictionSensitivity = predictionSensitivity or 1
+
+    local elapsed = 0
+    local connection
+
+    local lastTargetPos = targetHRP.Position
+    local predictedVelocity = Vector3.zero
+
+    local function getPredictedPosition(dt)
+        local currentPos = targetHRP.Position
+        local rawVelocity = (currentPos - lastTargetPos) / dt
+        -- Smooth the velocity to avoid jitter
+        predictedVelocity = predictedVelocity:Lerp(rawVelocity, 0.3)
+        lastTargetPos = currentPos
+
+        local speed = predictedVelocity.Magnitude
+        local lookAhead = speed * predictionSensitivity
+        return currentPos + predictedVelocity.Unit * lookAhead
+    end
+
+    local function onFinish()
+        connection:Disconnect()
+    end
+
+    if mode == "Character" then
+        connection = RunService.RenderStepped:Connect(function(dt)
+            elapsed += dt
+            if elapsed >= duration then
+                onFinish()
+                return
+            end
+
+            if not targetHRP or not hrp then
+                onFinish()
+                return
+            end
+
+            local aimPos = prediction and getPredictedPosition(dt) or targetHRP.Position
+            local direction = (aimPos - hrp.Position).Unit
+            hrp.CFrame = CFrame.new(hrp.Position, hrp.Position + direction)
+        end)
+
+    elseif mode == "Camera" then
+        local camera = workspace.CurrentCamera
+
+        connection = RunService.RenderStepped:Connect(function(dt)
+            elapsed += dt
+            if elapsed >= duration then
+                onFinish()
+                return
+            end
+
+            if not targetHRP then
+                onFinish()
+                return
+            end
+
+            local aimPos = prediction and getPredictedPosition(dt) or targetHRP.Position
+            camera.CFrame = CFrame.new(camera.CFrame.Position, aimPos)
+        end)
+    end
+end
+
+-- loader shits
+local survivors = {}
+local killers = {}
+
+local useaimbot = false
+local usesilentaim = false
+
+-- UI Setup & Creating
+getgenv().Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/skibided400/Scripts/refs/heads/main/ui%20libs/worst%20ui%20library"))()
+
+Library:Init()
+
+Library:SetSaveFile("skibidihubv2.json")
+Library.Config.AutoSave = true
+
+local Loader = Library:CreateWindow("LOADER", UDim2.new(0.5, 0, 0.5, 0))
+Library:MakeScrollable(Loader, 250)
+
+Library:CreateParagraph(Loader, "Thanks for trying out skibisaken!")
+
+
+Library:CreateGradientButton(Loader, "Load Script", function()
+    -- survivor checks
+    if table.find(survivors, "Jane Doe") then
+        print("e")
+        loadstring(game:HttpGet("https://pastebin.com/raw/i8Cg6rKF"))()
+    end
+end, {
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 200, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 0, 200)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 200, 255)),
+})
+
+-- survivors
+Library:CreateSeparator(Loader, "Survivors")
+Library:CreateMultiDropdown(Loader, "Choose", {"Jane Doe"}, {}, function(selected)
+    table.clear(survivors)
+
+    for _, sume in ipairs(selected) do
+        table.insert(survivors, sume)
+    end
+end, "SurvivorsMulti")
+
+-- killers
+Library:CreateSeparator(Loader, "Killers")
+Library:CreateMultiDropdown(Loader, "Choose", {""}, {}, function(selected)
+    table.clear(killers)
+
+    for _, sume in ipairs(selected) do
+        table.insert(killers, sume)
+    end
+end, "KillersMulti")
+
+-- aiming
+Library:CreateSeparator(Loader, "Aiming")
+Library:CreateToggle(Loader, "load Aimbot", false, function(value)
+    useaimbot = value
+end, "UseAimbot")
+
+Library:CreateToggle(Loader, "load Silent Aim", false, function(value)
+    usesilentaim = value
+end, "UseSilentAim")
+
+-- configs N such
+Library:CreateSeparator(Loader, "Configs")
+Library:CreateToggle(Loader, "using pc", false, function(value)
+    getgenv().usingPC = value
+end, "UsePc")
+
+Library:ApplyConfig()
